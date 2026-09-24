@@ -1,134 +1,146 @@
 <h1 align="center">QoderGate</h1>
 
 <p align="center">
-  把多个 Qoder 账号统一转换成 OpenAI 兼容接口的本地网关。<br>
-  A local gateway that turns multiple Qoder accounts into one OpenAI-compatible API.
+  将多个 Qoder 账号统一转换成 OpenAI 兼容接口的本地网关。<br>
+  此 fork 已移除自动注册账号功能，并针对 Docker 部署做了精简。
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/python-%3E%3D3.11-blue?logo=python&logoColor=white" alt="Python >= 3.11">
-  <img src="https://img.shields.io/badge/fastapi-0.115+-green?logo=fastapi&logoColor=white" alt="FastAPI">
-  <img src="https://img.shields.io/badge/license-MIT-orange" alt="License">
-  <a href="https://linux.do"><img src="https://img.shields.io/badge/LINUX_DO-%E7%A4%BE%E5%8C%BA-blue" alt="LINUX DO"></a>
-</p>
+## 当前版本
 
----
+- OpenAI 兼容接口：`/v1/chat/completions`
+- 多账号池、失败轮转、Token 刷新、额度查询
+- WebUI 管理控制台与文档站
+- SQLite 持久化
+- 支持 PAT、账号 JSON 和本机 Qoder 登录会话导入
+- 已移除自动注册机、DrissionPage、pypiwin32 及相关注册脚本
+- Docker / Docker Compose 部署
 
-## 致谢 / Acknowledgment
+## Docker 安装
 
-本项目思路来源于 [cubk1/qoder2api](https://github.com/cubk1/qoder2api/)，在此基础上用 Python 重写了后端并新增了 WebUI 管理控制台、SQLite 持久化、多账号池轮转和独立文档站。
-
-This project is inspired by [cubk1/qoder2api](https://github.com/cubk1/qoder2api/). We rewrote the backend in Python and added a WebUI management console, SQLite persistence, multi-account pool rotation, and a standalone documentation site.
-
-特别感谢 [LINUX DO](https://linux.do) 社区提供的交流与推广平台。
-
-Special thanks to the [LINUX DO](https://linux.do) community for the platform of exchange and promotion.
-
-## 功能 / Features
-
-- **OpenAI 兼容接口** — 通过 `/v1/chat/completions` 向客户端提供标准 Chat Completions API
-- **多账号池** — 导入多个 Qoder 账号，按 UID 自动去重，请求失败时自动轮转
-- **两层鉴权** — 管理后台密钥与外部 API Key 分开配置
-- **SQLite 持久化** — 账号、API Key、全局配置全部存入本地数据库
-- **WebUI 控制台** — Dashboard、账号管理、API Key 管理、Playground、服务日志
-- **独立文档站** — `/documents` 提供中英文 Wiki，支持本地搜索和目录跳转
-- **自动检测语言** — 根据浏览器地区自动切换中文/英文
-
-## 快速开始 / Quickstart
-
-### 安装 / Install
+要求：Docker Desktop 或 Docker Engine + Docker Compose。
 
 ```bash
-git clone https://github.com/bzym2/QoderGateway.git
+git clone https://github.com/ajoa76/QoderGateway.git
 cd QoderGateway
-uv sync
-```
-
-### 前端构建 / Build Frontend
-
-```bash
-cd frontend
-npm install
-npm run build
-cd ..
-```
-
-构建产物会输出到 `src/qoder2api/static/`，后端启动时直接托管 WebUI 与文档站。
-
-### 配置 / Configure
-
-```bash
 cp .env.example .env
+docker compose up -d --build
 ```
 
-编辑 `.env`，修改管理员密码：
+Windows PowerShell 可使用：
 
-```env
-QODER_ADMIN_PASSWORD=your-strong-password
+```powershell
+git clone https://github.com/ajoa76/QoderGateway.git
+cd QoderGateway
+Copy-Item .env.example .env
+docker compose up -d --build
 ```
 
-> **默认密码是 `admin`，强烈建议第一次登录后立即修改。**
+启动后访问：
 
-### 启动 / Start
+- 管理控制台：`http://127.0.0.1:5050/console`
+- 文档：`http://127.0.0.1:5050/documents`
+- 健康检查：`http://127.0.0.1:5050/healthz`
+- OpenAI API Base URL：`http://127.0.0.1:5050/v1`
+
+默认管理密码为 `admin`。建议在 `.env` 中修改 `QODER_ADMIN_PASSWORD` 后再正式使用。
+
+## 数据持久化
+
+Docker Compose 使用命名 volume：
+
+```text
+qodergateway-data -> /root/.qoder
+```
+
+SQLite 数据库位于容器中的：
+
+```text
+/root/.qoder/qoder2api.db
+```
+
+因此重新构建或升级容器不会删除账号、API Key 和网关配置。
+
+## 常用命令
 
 ```bash
-uv run qoder2api
+# 查看状态
+docker compose ps
+
+# 查看日志
+docker compose logs -f qodergateway
+
+# 重启
+docker compose restart qodergateway
+
+# 更新代码并重建
+git pull
+docker compose up -d --build
+
+# 停止
+docker compose down
 ```
 
-服务默认运行在 `http://127.0.0.1:5050/`。
+不要使用 `docker compose down -v`，除非明确要删除持久化数据。
 
-| 路径 | 说明 |
-|------|------|
-| `/` | Landing Page |
-| `/console` | 管理控制台 |
-| `/documents` | 文档站 / Wiki |
-| `/v1/chat/completions` | OpenAI 兼容 API |
+## 导入账号
 
-### 第一次 API 调用 / First API Call
+可以在 WebUI 中：
 
-在控制台导入账号后：
+1. 添加 Qoder PAT。
+2. 导入本机已有 Qoder 登录会话（仅适用于直接在宿主机运行后端的场景）。
+3. 批量粘贴账号 JSON。
+
+Docker 容器不会自动创建或注册新的 Qoder 账号。
+
+## 第一次 API 调用
 
 ```bash
 curl http://127.0.0.1:5050/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "lite",
-    "messages": [{ "role": "user", "content": "Hello" }],
+    "messages": [{"role": "user", "content": "Hello"}],
     "stream": false
   }'
 ```
 
-## 环境变量 / Environment Variables
+如果在控制台开启了 API Key 鉴权，请按页面生成的 Key 添加对应请求头。
+
+## 环境变量
 
 | 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `QODER_HOST` | 服务绑定地址 | `127.0.0.1` |
+|---|---|---|
+| `QODER_HOST` | 容器内监听地址 | `0.0.0.0` |
 | `QODER_PORT` | 服务端口 | `5050` |
-| `QODER_ADMIN_PASSWORD` | 管理员密码（覆盖 SQLite 存储值） | `admin` |
-| `QODER_PROXY` | 出站代理地址 | 空 |
+| `QODER_ADMIN_PASSWORD` | 管理后台密码 | `admin` |
+| `QODER_PROXY` | 可选出站代理 | 空 |
 | `QODER_ENABLE_DOCUMENTS` | 是否启用文档页 | `1` |
 | `QODER_ENABLE_LANDING` | 是否启用 Landing Page | `1` |
-| `QODER_PAT` | 首次启动时自动导入的 PAT | 空 |
+| `QODER_PAT` | 首次启动自动导入的 PAT | 空 |
 
-## 项目结构 / Project Structure
+如果 Docker 需要访问 Windows 宿主机上的代理，可使用：
 
+```env
+QODER_PROXY=http://host.docker.internal:7890
 ```
-├── src/qoder2api/          # Python 后端
-│   ├── app.py              # FastAPI 路由
-│   ├── accounts.py         # SQLite 账号管理
-│   ├── auth.py             # Qoder 鉴权与签名
-│   ├── bridge.py           # OpenAI 兼容响应转换
-│   ├── config.py           # 配置读写
-│   ├── database.py         # SQLite schema
-│   ├── env.py              # 环境变量加载
-│   └── static/             # 前端构建产物
-├── frontend/               # React 前端源码
-│   ├── src/App.tsx         # 管理控制台
-│   ├── src/docs-main.tsx   # 文档站
-│   ├── src/landing-main.tsx# Landing Page
-│   └── src/docs/           # 中英文 Markdown 文档
-├── .env.example            # 环境变量模板
-└── pyproject.toml          # 项目配置
+
+## 项目结构
+
+```text
+├── Dockerfile
+├── docker-compose.yml
+├── frontend/
+├── src/qoder2api/
+│   ├── app.py
+│   ├── accounts.py
+│   ├── auth.py
+│   ├── bridge.py
+│   ├── config.py
+│   ├── database.py
+│   ├── env.py
+│   └── tokens.py
+├── .env.example
+└── pyproject.toml
 ```
 
 ## License
