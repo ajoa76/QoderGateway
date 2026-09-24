@@ -1,0 +1,20 @@
+services:
+  qodergateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: qodergateway:local
+    container_name: qodergateway
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      QODER_HOST: "0.0.0.0"
+      QODER_PORT: "5050"
+    ports:
+      - "127.0.0.1:5050:5050"
+    volumes:
+      - qodergateway-data:/root/.qoder
+
+volumes:
+  qodergateway-data:
